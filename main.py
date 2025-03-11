@@ -4,12 +4,17 @@ import ubluetooth
 import time
 
 from machine import I2C, Pin
-i2c = I2C(0, scl=Pin(22), sda=Pin(21))
+i2c = I2C(0, scl=Pin(22), sda=Pin(21)) #I2C comms
+
+p4 = Pin(4, Pin.OUT) # set GPIO4 as an output pin, this'll control power
+p2 = Pin(2, Pin.OUT) # GPIO2 is buzzer
+p19 = Pin(19, Pin.OUT) #Red LED/IR transmitter
 
 
-# Replace with your actual IMU sensor driver import
+
+# Import IMU sensor driver
 try:
-    from mpu6886 import MPU6886  # For M5 devices with an MPU6886 sensor
+    from mpu6886 import MPU6886  # For M5 devices with an MPU6886 sensor (like this one)
 except ImportError:
     print("MPU6886 library not found. Please install the required driver.")
     MPU6886 = None
@@ -58,18 +63,25 @@ class BLEUART:
         adv_payload = bytearray(b'\x02\x01\x06') + bytearray((len(name) + 1, 0x09)) + name.encode()
         self._ble.gap_advertise(100, adv_payload)
 
+# ============================================ Actual Code Here =========================================
+
+# Initialize battery/power supply
+p4.on() #set pin 4 to high
+p19.on() #turn on red LED
+
 
 # Initialize BLE
 ble = ubluetooth.BLE()
-ble_uart = BLEUART(ble, name="M5-IMU")
+ble_uart = BLEUART(ble, name="Tony-IMU") #may need to change the naming syntax with multiple devices together
 
-# Initialize the IMU sensor (if available)
+# Initialize the IMU sensor
 if MPU6886:
     imu = MPU6886(i2c)
 else:
     imu = None
 
 while True:
+    #buzzer.value(1)
     if imu:
         # Read IMU sensor data: assume functions return (x, y, z)
         accel = imu.acceleration()   # e.g., (ax, ay, az)
