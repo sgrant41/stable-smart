@@ -2,21 +2,26 @@ import asyncio
 import csv
 import time
 import os
+from datetime import datetime
 from bleak import BleakClient, BleakScanner
 
 # Nordic UART Service UUIDs
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # Notification characteristic
 
-# CSV file setup
-CSV_FILENAME = "imu_data.csv"
+# Folder to store CSV files
+DATA_FOLDER = "imu_data"
+os.makedirs(DATA_FOLDER, exist_ok=True)  # Create folder if it doesn't exist
+
+# Generate a timestamped filename inside imu_data/
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+CSV_FILENAME = os.path.join(DATA_FOLDER, f"imu_data_{timestamp}.csv")
 FIELDNAMES = ["Time (s)", "Accel X", "Accel Y", "Accel Z", "Gyro X", "Gyro Y", "Gyro Z"]
 
-# Create the CSV file if it doesn't exist and write the header
-if not os.path.exists(CSV_FILENAME):
-    with open(CSV_FILENAME, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(FIELDNAMES)  # Write header
+# Create and initialize the CSV file
+with open(CSV_FILENAME, 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(FIELDNAMES)  # Write header
 
 start_time = None
 
@@ -63,7 +68,7 @@ async def run_ble():
             while True:
                 await asyncio.sleep(1.0)  # Keep connection alive
         except KeyboardInterrupt:
-            print("\nRecording stopped by user. Data saved.")
+            print(f"\nRecording stopped. Data saved to {CSV_FILENAME}.")
             exit(0)
 
 async def main():
