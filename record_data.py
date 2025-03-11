@@ -1,17 +1,24 @@
 import asyncio
 import csv
 import time
+import os
 from bleak import BleakClient, BleakScanner
 
 # Nordic UART Service UUIDs
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # Notification characteristic
 
-# Data storage
-data = []
-start_time = None
-DURATION = 30  # Collect data for 30 seconds
+# CSV file setup
 CSV_FILENAME = "imu_data.csv"
+FIELDNAMES = ["Time (s)", "Accel X", "Accel Y", "Accel Z", "Gyro X", "Gyro Y", "Gyro Z"]
+
+# Create the CSV file if it doesn't exist and write the header
+if not os.path.exists(CSV_FILENAME):
+    with open(CSV_FILENAME, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(FIELDNAMES)  # Write header
+
+start_time = None
 
 def notification_handler(sender, received_data):
     """Callback for handling incoming BLE notifications."""
@@ -29,17 +36,12 @@ def notification_handler(sender, received_data):
                 start_time = time.time()
 
             elapsed_time = time.time() - start_time
-            data.append([elapsed_time, ax, ay, az, gx, gy, gz])
 
-            # Stop collecting after 30 seconds
-            if elapsed_time >= DURATION:
-                print(f"Data collection complete. Saving to {CSV_FILENAME}...")
-                with open(CSV_FILENAME, 'w', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerow(["Time (s)", "Accel X", "Accel Y", "Accel Z", "Gyro X", "Gyro Y", "Gyro Z"])
-                    writer.writerows(data)
-                print("Data saved.")
-                exit(0)
+            # Save to CSV file immediately
+            with open(CSV_FILENAME, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([elapsed_time, ax, ay, az, gx, gy, gz])
+                
     except Exception as e:
         print("Error decoding notification data:", e)
 
@@ -47,7 +49,7 @@ async def run_ble():
     """Scan for the BLE device, connect, and subscribe to notifications."""
     print("Scanning for BLE device...")
     devices = await BleakScanner.discover(timeout=5.0)
-    target = next((d for d in devices if d.name == "M5-AJ"), None)
+    target = next((d for d in devices if d.name == "M5-IMU"), None)
 
     if target is None:
         print("Target BLE device not found.")
@@ -56,11 +58,19 @@ async def run_ble():
     async with BleakClient(target) as client:
         print("Connected to", target.address)
         await client.start_notify(UART_TX_CHAR_UUID, notification_handler)
-        while True:
-            await asyncio.sleep(1.0)  # Keep connection alive
+        
+        try:
+            while True:
+                await asyncio.sleep(1.0)  # Keep connection alive
+        except KeyboardInterrupt:
+            print("\nRecording stopped by user. Data saved.")
+            exit(0)
 
 async def main():
     await run_ble()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nProgram exited.")
