@@ -71,9 +71,8 @@ p4.on() #set pin 4 to high
 
 # Initialize power indicator
 pwmred = PWM(p19) #make PWM object for the red LED (GPIO19), this should also turn it on
-#fyi the frequency defaults to 5 kHz, may need to change
-dutcyc = 0.25 #desired duty cycle as a decimal (e.g. 0.25 for 25%)
-pwmred.duty(1023*dutcyc) #apply duty cycle
+pwmred.freq(1000) #frequency of 1 kHz
+pwmred.duty(5) #apply duty cycle
 
 
 # Initialize BLE
