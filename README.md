@@ -21,3 +21,11 @@ MicroPython should now be installed on the M5, make sure to mark it in the MCU I
 2. Scroll down to the initialization lines near the end and edit the name of ble_uart to reflect the device used (ex. "M5-Tony")
 3. Save As > MicroPython device > type "main.py" and save
 4. Repeat for mpu6886.py, omitting the name editing part
+
+### Collecting Data
+1. For each M5, in `main.py`, set name to M5-IMU-{name}
+2. Turn on all M5s by holding name side button for ~5 seconds until LED turns on
+3. Run record_data.py, ensuring that it properly connects and receives data from all M5s. You can trouble-shoot connection problems by going to your phone's bluetooth menu.
+4. Annotate data by holding the space key while recording.
+5. Hit `ctr + c` to end data collection. Data will be stored in a timestamped csv in `imu_data/`
+6. Run `plot_data.py` to make a pretty graph of the data!
