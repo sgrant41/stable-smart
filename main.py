@@ -3,12 +3,13 @@
 import ubluetooth
 import time
 
-from machine import I2C, Pin
+from machine import I2C, Pin, PWM
 i2c = I2C(0, scl=Pin(22), sda=Pin(21)) #I2C comms
 
 p4 = Pin(4, Pin.OUT) # set GPIO4 as an output pin, this'll control power
 p2 = Pin(2, Pin.OUT) # GPIO2 is buzzer
 p19 = Pin(19, Pin.OUT) #Red LED/IR transmitter
+
 
 
 
@@ -67,7 +68,12 @@ class BLEUART:
 
 # Initialize battery/power supply
 p4.on() #set pin 4 to high
-p19.on() #turn on red LED
+
+# Initialize power indicator
+pwmred = PWM(p19) #make PWM object for the red LED (GPIO19), this should also turn it on
+#fyi the frequency defaults to 5 kHz, may need to change
+dutcyc = 0.25 #desired duty cycle as a decimal (e.g. 0.25 for 25%)
+pwmred.duty(1023*dutcyc) #apply duty cycle
 
 
 # Initialize BLE
