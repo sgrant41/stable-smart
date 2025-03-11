@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import csv
 import os
+import numpy as np
 
-DATA_FOLDER = "imu_data"  # Folder where CSV files are stored
+DATA_FOLDER = "imu_data"
 
 def get_latest_csv():
     """Find the most recent IMU CSV file in the directory."""
@@ -29,6 +30,7 @@ else:
 # Read data from CSV
 time_vals, accel_x, accel_y, accel_z = [], [], [], []
 gyro_x, gyro_y, gyro_z = [], [], []
+annotations = []
 
 try:
     with open(CSV_FILENAME, 'r') as file:
@@ -42,6 +44,23 @@ try:
             gyro_x.append(float(row[4]))
             gyro_y.append(float(row[5]))
             gyro_z.append(float(row[6]))
+            annotations.append(row[7] == "Annotated")
+
+    # Convert lists to NumPy arrays
+    time_vals = np.array(time_vals)
+    annotations = np.array(annotations)
+
+    # Identify annotation segments
+    annotated_segments = []
+    start = None
+    for i in range(len(annotations)):
+        if annotations[i] and start is None:
+            start = time_vals[i]  # Mark start
+        elif not annotations[i] and start is not None:
+            annotated_segments.append((start, time_vals[i]))  # Mark end
+            start = None
+    if start is not None:
+        annotated_segments.append((start, time_vals[-1]))  # Close last segment if needed
 
     # Plot Acceleration Data
     plt.figure(figsize=(10, 5))
@@ -55,6 +74,10 @@ try:
     plt.legend()
     plt.grid(True)
 
+    # Highlight annotated regions
+    for start, end in annotated_segments:
+        plt.axvspan(start, end, color='red', alpha=0.3)
+
     # Plot Gyroscope Data
     plt.subplot(2, 1, 2)
     plt.plot(time_vals, gyro_x, label='Gyro X', color='c')
@@ -65,6 +88,11 @@ try:
     plt.title("IMU Gyroscope Data")
     plt.legend()
     plt.grid(True)
+
+
+    # Highlight annotated regions
+    for start, end in annotated_segments:
+        plt.axvspan(start, end, color='red', alpha=0.3)
 
     # Show plots
     plt.tight_layout()
