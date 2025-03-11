@@ -10,7 +10,7 @@ UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # Notification chara
 # Data storage
 data = []
 start_time = None
-DURATION = 10  # Collect data for 30 seconds
+DURATION = 30  # Collect data for 30 seconds
 CSV_FILENAME = "imu_data.csv"
 
 def notification_handler(sender, received_data):
@@ -20,24 +20,23 @@ def notification_handler(sender, received_data):
         line = received_data.decode('utf-8').strip()
         print("Received:", line)  # Debugging
         parts = line.split(',')
-        if len(parts) >= 4:
+        if len(parts) >= 7:  # Ensure enough data points
             timestamp = float(parts[0])
-            ax = float(parts[1])
-            ay = float(parts[2])
-            az = float(parts[3])
+            ax, ay, az = float(parts[1]), float(parts[2]), float(parts[3])
+            gx, gy, gz = float(parts[4]), float(parts[5]), float(parts[6])
 
             if start_time is None:
                 start_time = time.time()
 
             elapsed_time = time.time() - start_time
-            data.append([elapsed_time, ax, ay, az])
+            data.append([elapsed_time, ax, ay, az, gx, gy, gz])
 
             # Stop collecting after 30 seconds
             if elapsed_time >= DURATION:
                 print(f"Data collection complete. Saving to {CSV_FILENAME}...")
                 with open(CSV_FILENAME, 'w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(["Time (s)", "Accel X", "Accel Y", "Accel Z"])
+                    writer.writerow(["Time (s)", "Accel X", "Accel Y", "Accel Z", "Gyro X", "Gyro Y", "Gyro Z"])
                     writer.writerows(data)
                 print("Data saved.")
                 exit(0)
@@ -48,7 +47,7 @@ async def run_ble():
     """Scan for the BLE device, connect, and subscribe to notifications."""
     print("Scanning for BLE device...")
     devices = await BleakScanner.discover(timeout=5.0)
-    target = next((d for d in devices if d.name == "M5-IMU"), None)
+    target = next((d for d in devices if d.name == "M5-AJ"), None)
 
     if target is None:
         print("Target BLE device not found.")
