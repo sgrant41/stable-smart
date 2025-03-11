@@ -15,7 +15,7 @@ p19 = Pin(19, Pin.OUT) #Red LED/IR transmitter
 
 # Import IMU sensor driver
 try:
-    from mpu6886 import MPU6886  # For M5 devices with an MPU6886 sensor (like this one)
+    from m5.mpu6886 import MPU6886  # For M5 devices with an MPU6886 sensor (like this one)
 except ImportError:
     print("MPU6886 library not found. Please install the required driver.")
     MPU6886 = None
