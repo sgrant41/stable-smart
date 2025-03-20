@@ -1,29 +1,34 @@
-# M5 Device BLE UART Server with IMU Data Streaming
-
 import ubluetooth
 import time
 
-from machine import I2C, Pin, PWM
+from machine import I2C, Pin, PWM, ADC
 i2c = I2C(0, scl=Pin(22), sda=Pin(21)) #initialize I2C comms
 
 #Initialize Pins
 p4 = Pin(4, Pin.OUT) # set GPIO4 as an output pin, this'll control power
 p19 = Pin(19, Pin.OUT) #Red LED/IR transmitter
 Abutt = Pin(37, Pin.IN, Pin.PULL_UP) #Button A (the one on the same face as the screen)
+adc = ADC(Pin(35)) #ADC connected to onboard battery
 
 #Initialize Variables
 NAME = "M5-IMU-Name" #device name, used in BLE
+IMU_buffer = [] #blank buffer to hold multiple IMU readings
 
-IMUbuffer = [] #blank buffer to hold multiple IMU readings
+packet_size = 1 #how many readings to send at once
+    #^^^^^^^^^^^^ This should stay at 1 for now until laptop code is updated to receive packets of multiple sensor readings
+IMU_delay = 100 #time to wait between IMU readings
+battery_delay = 1000 #time between battery checks
 
+batt_max = 3.7 #max battery voltage, should probably actually measure this
 
 # Import IMU sensor driver
 try:
-    from m5.mpu6886 import MPU6886  # For M5 devices with an MPU6886 sensor (like this one)
+    from mpu6886 import MPU6886
 except ImportError:
-    print("MPU6886 library not found. Please install the required driver.")
+    print("MPU6886 library not found. Make sure the driver (mpu6886.py) is installed.")
     MPU6886 = None
 
+#======================================  Defines ===========================================
 class BLEUART:
     def __init__(self, ble, name=NAME):
         self._ble = ble
@@ -67,9 +72,8 @@ class BLEUART:
         # Use a bytes literal for the flags.
         adv_payload = bytearray(b'\x02\x01\x06') + bytearray((len(name) + 1, 0x09)) + name.encode()
         self._ble.gap_advertise(100, adv_payload) #advertising interval (currently 100 ms)
-#End BLE defs
-
-
+#End BLE defs \(.o.)/
+        
 def read_imu():
     if imu:
         # Read IMU sensor data: assume functions return (x, y, z)
@@ -89,36 +93,75 @@ def read_imu():
     return data_str
 
 def transmit_data(buffer):
-    if len(buffer) >= 10:
+    if len(buffer) >= packet_size:
         packet = "\n".join(buffer) #merge entries of buffer, separate with new lines
         ble_uart.send(packet.encode('utf-8')) #send packet
         buffer.clear() #erase buffer
-        
+
+def read_batt_volt(): #returns current voltage of the battery
+    reading = adc.read()
+    voltage = reading * (batt_max / 4095)
+    return voltage
+
+def read_batt_pct():
+    batt_now = read_batt_volt() #current voltage
+    pct = (batt_now / batt_init) * 100
+    return pct
+
+def guess_rem_life():
+    batt_now = read_batt_volt()
+    runtime_ms = time.ticks_diff(current_time,init_time) #how much time (ms) has elapsed since start
+    runtime_V = batt_init - batt_now #how much voltage was drawn since start
+    dV_dt = runtime_ms / runtime_V
+    t_rem_ms = batt_now / dV_dt #number of milliseconds of life left if power draw doesn't change
+    t_rem_s = t_rem_ms / 1000
+    return t_rem_s
+    
+    
+#==================================== Component Initialization ===================================================
 # Initialize battery/power supply
 p4.on() #set pin 4 to high
+batt_init = read_batt_volt() #battery voltage upon powering on
+
+#initialize timers
+init_time = time.ticks_ms()
+current_time = init_time
+last_IMU = current_time
+last_battery = current_time
 
 # Initialize power indicator LED
-pwmred = PWM(p19) #make PWM object for the red LED (GPIO19), this should also turn it on
-pwmred.freq(10000) #frequency of 10 kHz
-pwmred.duty(5) #apply duty cycle
+pwmred = PWM(p19, freq=500) #make PWM object for the red LED (GPIO19)
+pwmred.duty(0) #turn off LED
 
+# Create interrupt for button A to turn on power indicator
+def indic_handler(pin):
+    pwmred.duty(40)
+    time.sleep(0.5) #leave on for n seconds
+    pwmred.duty(0) #turn led off again
+Abutt.irq(trigger=Pin.IRQ_FALLING, handler=indic_handler) #assign interrupt handler to button A
 
 # Initialize BLE
 ble = ubluetooth.BLE()
 ble_uart = BLEUART(ble)
 
-# Initialize the IMU sensor
+# Initialize the IMU
 if MPU6886:
     imu = MPU6886(i2c)
 else:
     imu = None
 
-
 #========================================== Superloop ==================================================
 while True:
-    imu_str = sample_imu()
-    time.sleep(0.1) #100ms delay, so a 10Hz sample rate
+    current_time = time.ticks_ms()
     
-    #IMUbuffer.append(imu_str) #add CSV string to buffer
-    #transmit_data(IMU_buffer)
-    ble_uart.send(imu_str.encode('utf-8')) #remove this once record_data has been edited to work with the merged CSVs of transmit_data
+    if time.ticks_diff(current_time, last_IMU) >= IMU_delay: 
+        imu_str = read_imu()
+        IMU_buffer.append(imu_str) #add reading to buffer
+        last_IMU = current_time #reset IMU timer
+
+    transmit_data(IMU_buffer) #send a packet once enough readings are collected
+    
+    if time.ticks_diff(current_time, last_battery) >= battery_delay:
+        percent = read_batt_pct()
+        print("{:.2f}% Remaining".format(percent)) #for debug, not essential
+        battery_delay = current_time #reset battery timer
