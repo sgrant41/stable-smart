@@ -164,4 +164,4 @@ while True:
     if time.ticks_diff(current_time, last_battery) >= battery_delay:
         percent = read_batt_pct()
         print("{:.2f}% Remaining".format(percent)) #for debug, not essential
-        battery_delay = current_time #reset battery timer
+        last_battery = current_time #reset battery timer
